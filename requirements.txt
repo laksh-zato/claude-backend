@@ -15,7 +15,6 @@ docstring_parser==0.18.0
 et_xmlfile==2.0.0
 filetype==1.2.0
 # Editable Git install with no remote (finance-chatbot-backend==0.1.0)
--e /home/thankyouzato/Documents/zato_v11/finance-chatbot/backend
 Flask==3.1.3
 flask-cors==6.0.2
 google-auth==2.50.0
