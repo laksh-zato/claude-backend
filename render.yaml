@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: finance-chatbot-backend
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /health
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_HTTP_REFERER
+        sync: false
+      - key: OPENROUTER_X_TITLE
+        value: Finance Skills Chatbot
+      - key: MAX_FILE_BYTES
+        value: "20000000"
+      - key: FILE_CACHE_TTL_SECONDS
+        value: "3600"
+      - key: FILE_CACHE_MAXSIZE
+        value: "200"
+      - key: PYTHON_VERSION
+        value: 3.12.5
