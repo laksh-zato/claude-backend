@@ -1,18 +1,25 @@
 import asyncio
+import logging
 import os
 import queue
 import tempfile
 import threading
+from functools import lru_cache
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, abort, stream_with_context
 from flask_cors import CORS
+from openai import APIError, AuthenticationError, RateLimitError
 
 from agent.graph import build_agent
 from agent.message_builder import build_user_message
 from files.cache import FileCache
 from files.parse import parse_upload, ALLOWED_MIMES, detect_mime
 from sse import format_sse, EventTranslator
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("app")
 
 
 app = Flask(__name__)
@@ -27,18 +34,10 @@ file_cache = FileCache(
 MAX_FILE_BYTES = int(os.environ.get("MAX_FILE_BYTES", "20000000"))
 
 
-class _AgentHolder:
-    """Lazy singleton — built on first request to keep test imports fast."""
-
-    agent = None
-
-    def get(self):
-        if self.agent is None:
-            self.agent = build_agent()
-        return self.agent
-
-
-_build_agent_holder = _AgentHolder()
+@lru_cache(maxsize=8)
+def _get_agent_for_model(model_slug: str):
+    """Build (and cache) one deepagent per model slug. ~50ms first call per slug."""
+    return build_agent(default_model=model_slug)
 
 
 @app.route("/health")
@@ -130,15 +129,25 @@ def _stream_events(text: str, file_ids: list[str], thread_id: str, model: str):
 
     async def runner():
         try:
-            agent = _build_agent_holder.get()
+            agent = _get_agent_for_model(model)
             async for raw in agent.astream_events(
                 {"messages": [user_msg]}, config=config, version="v2"
             ):
                 payload = translator.translate(raw)
                 if payload is not None:
                     q.put(payload)
+        except AuthenticationError as exc:
+            logger.exception("OpenRouter authentication error: %s", exc)
+            q.put({"type": "error", "message": "Backend misconfigured: invalid OpenRouter key"})
+        except RateLimitError as exc:
+            logger.exception("OpenRouter rate limit hit: %s", exc)
+            q.put({"type": "error", "message": "Rate limited; please retry shortly"})
+        except APIError as exc:
+            logger.exception("OpenRouter API error: %s", exc)
+            q.put({"type": "error", "message": "Upstream model error; please retry"})
         except Exception as exc:
-            q.put({"type": "error", "message": f"Agent error: {exc}"})
+            logger.exception("Unexpected agent error: %s", exc)
+            q.put({"type": "error", "message": "Agent error; please retry"})
         finally:
             q.put(None)
 
