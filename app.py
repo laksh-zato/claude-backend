@@ -7,6 +7,10 @@ import threading
 from functools import lru_cache
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask, Response, jsonify, request, abort, stream_with_context
 from flask_cors import CORS
 from openai import APIError, AuthenticationError, RateLimitError
