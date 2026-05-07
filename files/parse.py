@@ -41,8 +41,10 @@ def detect_mime(filename: str) -> str:
 
 def parse_upload(path: Path, filename: str) -> ParsedFile:
     mime = detect_mime(filename)
+    # CSV/XLSX: validate by attempting to parse with pandas (catches corrupt
+    # uploads at the /files boundary), then send the original bytes to the LLM
+    # as a base64 file block. OpenRouter parses the file server-side.
     if mime in ("text/csv", XLSX_MIME):
-        text = parse_tabular(path, mime=mime)
-        return {"kind": "text", "filename": filename, "mime": mime, "text": text}
+        parse_tabular(path, mime=mime)  # raises on corrupt; result discarded
     block = to_content_block(path, mime=mime, filename=filename)
     return {"kind": "block", "filename": filename, "mime": mime, "block": block}

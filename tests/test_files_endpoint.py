@@ -30,7 +30,9 @@ def test_post_csv_returns_file_id():
     assert "file_id" in body
     assert body["filename"] == "tb.csv"
     assert body["mime"] == "text/csv"
-    assert file_cache.get(body["file_id"])["text"]
+    payload = file_cache.get(body["file_id"])
+    assert payload["kind"] == "block"
+    assert payload["block"]["type"] == "file"
 
 
 def test_post_pdf_returns_file_id():

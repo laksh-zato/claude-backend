@@ -1,14 +1,27 @@
 import base64
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 
-def to_content_block(path_or_bytes: Union[Path, bytes], mime: str, filename: str = None) -> dict:
-    """Convert a PDF or image to an OpenRouter-compatible content block.
+FILE_BLOCK_MIMES = {
+    "application/pdf",
+    "text/csv",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+    "text/plain",
+}
 
-    PDF format follows OpenRouter's PDF support (file content block).
-    Image format follows OpenAI's vision API (image_url content block).
-    Both Anthropic-on-OpenRouter accept these.
+
+def to_content_block(
+    path_or_bytes: Union[Path, bytes], mime: str, filename: Optional[str] = None
+) -> dict:
+    """Convert a binary upload to an OpenRouter-compatible content block.
+
+    PDFs, CSVs, XLSX/XLS, and plain text use the `file` content block
+    (file_data is a base64 data URL). OpenRouter parses these server-side
+    and forwards to the model — Claude reads PDFs natively; for CSV/XLSX
+    OpenRouter parses and injects the parsed content. Images use the
+    `image_url` content block.
 
     See: https://openrouter.ai/docs/features/multimodal/pdfs
     """
@@ -23,12 +36,12 @@ def to_content_block(path_or_bytes: Union[Path, bytes], mime: str, filename: str
 
     b64 = base64.b64encode(data).decode("ascii")
 
-    if mime == "application/pdf":
+    if mime in FILE_BLOCK_MIMES:
         return {
             "type": "file",
             "file": {
                 "filename": filename,
-                "file_data": f"data:application/pdf;base64,{b64}",
+                "file_data": f"data:{mime};base64,{b64}",
             },
         }
 
